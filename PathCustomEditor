@@ -1,0 +1,68 @@
+using UnityEngine;
+using UnityEditor;
+
+namespace Esri.ArcGISMapsSDK.Editor.Components
+{
+    [CustomEditor(typeof(Samples.Components.CameraPath)), CanEditMultipleObjects]
+    public class PathCustomEditor : UnityEditor.Editor
+    {
+        private Samples.Components.CameraPath CameraPath;
+
+        public override void OnInspectorGUI()
+        {
+            var CameraPath = target as Samples.Components.CameraPath;
+
+            if (Application.isPlaying)
+            {
+                if (GUILayout.Button("Begin Flyover"))
+                {
+                    CameraPath.flyover();
+                }
+            }
+
+            GUILayout.Label("Starting Paramaters", EditorStyles.boldLabel);
+            CameraPath.startingPosition = EditorUtilities.ArcGISPointField("Position", CameraPath.startingPosition);
+            CameraPath.startingRotation = EditorUtilities.ArcGISRotationField("Rotation", CameraPath.startingRotation);
+            EditorGUILayout.Space(5);
+
+            GUILayout.Label("Ending Paramaters", EditorStyles.boldLabel);
+            CameraPath.endingPosition = EditorUtilities.ArcGISPointField("Position", CameraPath.endingPosition);
+            CameraPath.endingRotation = EditorUtilities.ArcGISRotationField("Rotation", CameraPath.endingRotation);
+            EditorGUILayout.Space(5);
+
+            GUILayout.Label("Other Paramaters", EditorStyles.boldLabel);
+            CameraPath.desiredDuration = EditorGUILayout.FloatField("Desired Duration:", CameraPath.desiredDuration);
+            CameraPath.desiredDelay = EditorGUILayout.FloatField("Desired Delay:", CameraPath.desiredDelay);
+            CameraPath.altitude = EditorGUILayout.FloatField("Desired Altitude:", CameraPath.altitude);
+            EditorGUILayout.Space(5);
+
+            if (Application.isPlaying)
+            {
+                GUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("Set Start Position"))
+                {
+                    CameraPath.setStartPosition();
+                }
+
+                if (GUILayout.Button("Set End Position"))
+                {
+                    CameraPath.setEndPosition();
+                }
+
+                GUILayout.EndHorizontal();
+
+                EditorGUILayout.Space(10);
+            }
+            else
+            {
+                if (GUILayout.Button("Load Changes"))
+                {
+                    CameraPath.loadChanges();
+                }
+            }
+
+            serializedObject.ApplyModifiedProperties();
+        }
+    }
+}
