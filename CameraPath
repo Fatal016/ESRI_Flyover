@@ -1,0 +1,134 @@
+using System.Collections;
+using Unity.Mathematics;
+using UnityEngine;
+using Esri.ArcGISMapsSDK.Utils.GeoCoord;
+using Esri.GameEngine.Geometry;
+using Esri.ArcGISMapsSDK.Components;
+using UnityEditorInternal;
+
+namespace Esri.ArcGISMapsSDK.Samples.Components
+{
+    public class CameraPath : MonoBehaviour
+    {
+        public ArcGISPoint startingPosition;
+        public ArcGISRotation startingRotation;
+
+        public ArcGISPoint endingPosition;
+        public ArcGISRotation endingRotation;
+
+        public float desiredDelay = 2;
+        public float desiredDuration = 10;
+        public float altitude = 5000000;
+       
+        private Task calculateTask = null;
+        private Task determineTask = null;
+        private Task moveTask = null;
+
+        public ArcGISSpatialReference defaultReference = ArcGISSpatialReference.WGS84();
+
+        private ArcGISPoint[] pointArrayGIS;
+        private ArcGISRotation[] rotationArrayGIS;
+
+        private double3[] positionArray = new double3[4];
+        private quaternion[] rotationArray = new quaternion[4];
+
+        private int arrayIndexer = 0;
+
+        private bool initRunning = true;
+
+        private void Start()
+        {
+            gameObject.GetComponent<ArcGISLocationComponent>().Position = new ArcGISPoint(0, 0, 5000000, defaultReference);
+            gameObject.GetComponent<ArcGISLocationComponent>().Rotation = new ArcGISRotation(0, 0, 0);
+        }
+
+        private void Update()
+        {
+            if (initRunning == false && moveTask == null) moveTask = new Task(movePosition());
+        }
+
+        private IEnumerator determineProcess()
+        {
+            yield return new WaitForSecondsRealtime(desiredDelay);
+            for (arrayIndexer = 0; arrayIndexer < positionArray.Length; arrayIndexer++)
+            {
+                calculateTask = new Task(calculatePosition());
+                yield return null;
+            }
+            yield return null;
+            initRunning = false;
+        }
+
+        private IEnumerator calculatePosition()
+        {
+            determineTask.Pause();
+            yield return new WaitForEndOfFrame();
+
+            gameObject.GetComponent<ArcGISLocationComponent>().Position = pointArrayGIS[arrayIndexer];
+            gameObject.GetComponent<ArcGISLocationComponent>().Rotation = rotationArrayGIS[arrayIndexer];
+            yield return new WaitForEndOfFrame();
+
+            positionArray[arrayIndexer] = new double3(gameObject.GetComponent<HPFramework.HPTransform>().UniversePosition);
+            rotationArray[arrayIndexer] = new quaternion(gameObject.GetComponent<HPFramework.HPTransform>().UniverseRotation.value);
+            yield return null;
+            determineTask.Unpause();
+        }
+
+        private IEnumerator movePosition()
+        {
+            float percentageComplete = 0;
+            float elapsedTime = 0;
+            do
+            {
+                yield return new WaitForEndOfFrame();
+                elapsedTime += Time.deltaTime;
+                percentageComplete = elapsedTime / desiredDuration;
+
+                gameObject.GetComponent<HPFramework.HPTransform>().UniversePosition = cubeBezier3(positionArray, percentageComplete);
+                gameObject.GetComponent<HPFramework.HPTransform>().UniverseRotation = Quaternion.Lerp(rotationArray[0], rotationArray[3], percentageComplete);
+
+            } while (percentageComplete < 1);
+            yield return null;
+        }
+
+        public void flyover() {
+            gameObject.GetComponent<ArcGISLocationComponent>().Position = startingPosition;
+            gameObject.GetComponent<ArcGISLocationComponent>().Rotation = startingRotation;
+
+            var temp1 = new ArcGISPoint(startingPosition.X, startingPosition.Y, altitude, defaultReference);
+            var temp2 = new ArcGISPoint(endingPosition.X, endingPosition.Y, altitude, defaultReference);
+            pointArrayGIS = new ArcGISPoint[] { startingPosition, temp1, temp2, endingPosition };
+            rotationArrayGIS = new ArcGISRotation[] { startingRotation, startingRotation, endingRotation, endingRotation };
+
+            determineTask = new Task(determineProcess());
+        }
+
+        private static double3 cubeBezier3(double3[] posArray, float t)
+        {
+            return (((-posArray[0] + 3 * (posArray[1] - posArray[2]) + posArray[3]) * t
+                + (3 * (posArray[0] + posArray[2]) - 6 * posArray[1])) * t
+                + 3 * (posArray[1] - posArray[0])) * t + posArray[0];
+        }
+
+        public void setStartPosition()
+        {
+            startingPosition = gameObject.GetComponent<ArcGISLocationComponent>().Position;
+            startingRotation = gameObject.GetComponent<ArcGISLocationComponent>().Rotation;
+        }
+        public void setEndPosition()
+        {
+            endingPosition = gameObject.GetComponent<ArcGISLocationComponent>().Position;
+            endingRotation = gameObject.GetComponent<ArcGISLocationComponent>().Rotation;
+        }
+
+        public void loadChanges()
+        {
+            ComponentUtility.PasteComponentValues(this);
+        }
+
+        private void OnDestroy()
+        {
+            ComponentUtility.CopyComponent(this);
+        }
+    }
+}
